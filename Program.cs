@@ -498,6 +498,11 @@ namespace AiToSimulateHumanBehaviourInPoker
         //=================================================================================================================
         // Play Poker Functions
         //=================================================================================================================
+        static void PrintSeparator()
+        {
+            Console.WriteLine("-----------------");
+        }
+        
         static int GetValidBettingAmount(Player player)
         {
             while (true)
@@ -526,12 +531,14 @@ namespace AiToSimulateHumanBehaviourInPoker
             bool isMainPlayerTurn = true;
 
             MainPlayer.Show();
+            PrintSeparator();
             GameTable.Show();
 
             while (true)
             {
                 if (isMainPlayerTurn)
                 {
+                    PrintSeparator();
                     Console.WriteLine($"{MainPlayer.Name}'s turn");
                     Console.WriteLine("1: Bet, 2: Call, 3: Raise, 4: Fold, 5: Check");
                     //int playerChoice = int.Parse(Console.ReadLine());
@@ -631,11 +638,11 @@ namespace AiToSimulateHumanBehaviourInPoker
 
             // Determine winner
             MainPlayer.Show();
-            Console.WriteLine("-----------------");
+            PrintSeparator();
             Ai1.Show();
-            Console.WriteLine("-----------------");
+            PrintSeparator();
             GameTable.Show();
-            Console.WriteLine("-----------------");
+            PrintSeparator();
             PokerHand MainPlayerHand = HandEvaultor.EvaluateHand(MainPlayer.Hand, GameTable.PokerTable);
             Console.WriteLine($"{MainPlayer.Name} you got a {MainPlayerHand}");
             PokerHand AiHand = HandEvaultor.EvaluateHand(Ai1.Hand, GameTable.PokerTable);
