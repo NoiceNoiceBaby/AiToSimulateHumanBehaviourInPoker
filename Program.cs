@@ -453,28 +453,26 @@ namespace AiToSimulateHumanBehaviourInPoker
                 return PokerHand.FourOfAKind;
             }
 
+            if (HasFullHouse(Cards))
+            {
+                return PokerHand.FullHouse;
+            }
+
             if (HasFlush(Cards))
             {
                 return PokerHand.Flush;
             }
 
-            
             if (HasStraight(Cards))
             {
                 return PokerHand.Straight;
             }
 
-            
             if (HasThreeOfAKind(Cards))
             {
-                if (HasFullHouse(Cards))
-                {
-                    return PokerHand.FullHouse;
-                }
                 return PokerHand.ThreeOfAKind;
             }
-
-            
+                       
             if (HasTwoPair(Cards))
             {
                 return PokerHand.TwoPair;
@@ -502,6 +500,22 @@ namespace AiToSimulateHumanBehaviourInPoker
         {
             Console.WriteLine("-----------------");
         }
+
+        static void DetermineWinner(Player MainPlayer, PokerHand MainPlayerHand, Player Ai, PokerHand AiPlayerHand)
+        {
+            if (MainPlayerHand > AiPlayerHand)
+            {
+                Console.WriteLine($"{MainPlayer.Name} wins!");
+            }
+            else if (AiPlayerHand > MainPlayerHand)
+            {
+                Console.WriteLine($"{Ai.Name} wins!");
+            }
+            else
+            {
+                Console.WriteLine("You both tied!");
+            }
+        }
         
         static int GetValidBettingAmount(Player player)
         {
@@ -525,7 +539,7 @@ namespace AiToSimulateHumanBehaviourInPoker
             }
         }
 
-        static void SimulateBettingRound(Deck DeckOfCards, Table GameTable, Player MainPlayer, Player Ai1)
+        static void SimulateBettingRound(Table GameTable, Player MainPlayer, Player Ai1)
         {
             int CurrentBet = GameTable.PotValue;
             bool isMainPlayerTurn = true;
@@ -622,31 +636,39 @@ namespace AiToSimulateHumanBehaviourInPoker
             DeckOfCards.ShuffleDeck();
             DeckOfCards.DealHand(MainPlayer);
             DeckOfCards.DealHand(Ai1);
-            SimulateBettingRound(DeckOfCards, GameTable, MainPlayer, Ai1);
+            SimulateBettingRound(GameTable, MainPlayer, Ai1);
 
             // Flop stage
             DeckOfCards.AddCardsToTable(GameTable);
-            SimulateBettingRound(DeckOfCards, GameTable, MainPlayer, Ai1);
+            SimulateBettingRound(GameTable, MainPlayer, Ai1);
 
             // Turn stage
             DeckOfCards.AddTurnToTable(GameTable);
-            SimulateBettingRound(DeckOfCards, GameTable, MainPlayer, Ai1);
+            SimulateBettingRound(GameTable, MainPlayer, Ai1);
 
             // River stage
             DeckOfCards.AddRiverToTable(GameTable);
-            SimulateBettingRound(DeckOfCards, GameTable, MainPlayer, Ai1);
+            SimulateBettingRound(GameTable, MainPlayer, Ai1);
 
-            // Determine winner
+            // End Game
             MainPlayer.Show();
             PrintSeparator();
+            
             Ai1.Show();
             PrintSeparator();
+            
             GameTable.Show();
             PrintSeparator();
+            
             PokerHand MainPlayerHand = HandEvaultor.EvaluateHand(MainPlayer.Hand, GameTable.PokerTable);
             Console.WriteLine($"{MainPlayer.Name} you got a {MainPlayerHand}");
+            
             PokerHand AiHand = HandEvaultor.EvaluateHand(Ai1.Hand, GameTable.PokerTable);
             Console.WriteLine($"{Ai1.Name} you got a {AiHand}");
+
+            // Determine Winner
+            PrintSeparator();
+            DetermineWinner(MainPlayer, MainPlayerHand, Ai1, AiHand);
             Console.Read();
         }
 
