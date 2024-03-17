@@ -670,53 +670,10 @@ namespace AiToSimulateHumanBehaviourInPoker
             while (!BettingRoundComplete(MainPlayer, Ai1));
         }
 
-        static void LetsPlayPoker(Player MainPlayer, Player Ai1, Deck DeckOfCards, Table GameTable)
+        static void EndGame(Player MainPlayer, Player Ai1, Table GameTable)
         {
-            // Preflop stage
-            MainPlayer.Folded = false;
-            Ai1.Folded = false;
-            MainPlayer.Checked = false;
-            Ai1.Checked = false;
+            Console.Clear();
             
-            DeckOfCards.GenerateDeck();
-            DeckOfCards.ShuffleDeck();
-
-            GameTable.ResetPotValue();
-            GameTable.ResetCards();
-
-            MainPlayer.ResetHand();
-            Ai1.ResetHand();
-
-            DeckOfCards.DealCard(MainPlayer);
-            DeckOfCards.DealCard(Ai1);
-
-            DeckOfCards.DealCard(MainPlayer);
-            DeckOfCards.DealCard(Ai1);
-
-            SimulateBettingRound(GameTable, MainPlayer, Ai1);
-
-            // Flop stage
-            DeckOfCards.AddCardsToTable(GameTable, 3);
-            if (MainPlayer.Folded != true || Ai1.Folded != true)
-            {
-                SimulateBettingRound(GameTable, MainPlayer, Ai1);
-            }
-
-            // Turn stage
-            DeckOfCards.AddCardsToTable(GameTable, 1);
-            if (MainPlayer.Folded != true || Ai1.Folded != true)
-            {
-                SimulateBettingRound(GameTable, MainPlayer, Ai1);
-            }
-
-            // River stage
-            DeckOfCards.AddCardsToTable(GameTable, 1);
-            if (MainPlayer.Folded != true || Ai1.Folded != true)
-            {
-                SimulateBettingRound(GameTable, MainPlayer, Ai1);
-            }
-
-            // End Game
             MainPlayer.Show();
             PrintSeparator();
 
@@ -734,7 +691,7 @@ namespace AiToSimulateHumanBehaviourInPoker
 
             // Determine Winner
             PrintSeparator();
-            
+
             if (MainPlayer.Folded != true && Ai1.Folded != true)
             {
                 DetermineWinner(GameTable, MainPlayer, MainPlayerHand, Ai1, AiHand);
@@ -756,8 +713,93 @@ namespace AiToSimulateHumanBehaviourInPoker
                 Ai1.ChipCount += (GameTable.PotValue) / 2;
                 MainPlayer.ChipCount += (GameTable.PotValue) / 2;
             }
-            
+
             PrintSeparator();
+        }
+        
+        static void LetsPlayPoker(Player MainPlayer, Player Ai1, Deck DeckOfCards, Table GameTable)
+        {
+            // Preflop stage
+            MainPlayer.Folded = false;
+            Ai1.Folded = false;
+            MainPlayer.Checked = false;
+            Ai1.Checked = false;
+
+            // Update ChipCount for Ai
+            Ai1.ChipCount = 10000;
+
+            if (MainPlayer.ChipCount == 0)
+            {
+                MainPlayer.ChipCount = 10000;
+            }
+            
+            DeckOfCards.GenerateDeck();
+            DeckOfCards.ShuffleDeck();
+
+            GameTable.ResetPotValue();
+            GameTable.ResetCards();
+
+            MainPlayer.ResetHand();
+            Ai1.ResetHand();
+
+            DeckOfCards.DealCard(MainPlayer);
+            DeckOfCards.DealCard(Ai1);
+
+            DeckOfCards.DealCard(MainPlayer);
+            DeckOfCards.DealCard(Ai1);
+
+            SimulateBettingRound(GameTable, MainPlayer, Ai1);
+
+            // Check if either player has folded after preflop or either players have gone all in
+            if (MainPlayer.Folded || Ai1.Folded || MainPlayer.ChipCount == 0 || Ai1.ChipCount == 0)
+            {
+                // Deal Remaining cards to table
+                DeckOfCards.AddCardsToTable(GameTable, 3);
+                DeckOfCards.AddCardsToTable(GameTable, 1);
+                DeckOfCards.AddCardsToTable(GameTable, 1);
+
+                EndGame(MainPlayer, Ai1, GameTable);
+            }
+            else
+            {
+                // Flop stage
+                DeckOfCards.AddCardsToTable(GameTable, 3);
+                SimulateBettingRound(GameTable, MainPlayer, Ai1);
+
+                // Check if either player has folded after the flop or either players have gone all in
+                if (MainPlayer.Folded || Ai1.Folded || MainPlayer.ChipCount == 0 || Ai1.ChipCount == 0)
+                {
+                    // Deal Remaining cards to table
+                    DeckOfCards.AddCardsToTable(GameTable, 1);
+                    DeckOfCards.AddCardsToTable(GameTable, 1);
+
+                    EndGame(MainPlayer, Ai1, GameTable);
+                }
+                else
+                {
+                    // Turn stage
+                    DeckOfCards.AddCardsToTable(GameTable, 1);
+                    SimulateBettingRound(GameTable, MainPlayer, Ai1);
+
+                    // Check if either player has folded after the turn or either players have gone all in
+                    if (MainPlayer.Folded || Ai1.Folded || MainPlayer.ChipCount == 0 || Ai1.ChipCount == 0)
+                    {
+                        // Deal Remaining cards to table
+                        DeckOfCards.AddCardsToTable(GameTable, 1);
+
+                        EndGame(MainPlayer, Ai1, GameTable);
+                    }
+                    else
+                    {
+                        // River stage
+                        DeckOfCards.AddCardsToTable(GameTable, 1);
+                        SimulateBettingRound(GameTable, MainPlayer, Ai1);
+
+                        // End Game
+                        EndGame(MainPlayer, Ai1, GameTable);
+                    }
+                }
+            }
 
             Console.WriteLine("Would you like to play again? y/n");
             string choice = Console.ReadLine().ToLower();
