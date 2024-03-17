@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -246,9 +247,17 @@ namespace AiToSimulateHumanBehaviourInPoker
             }
         }
 
+        public void ResetHand()
+        {
+            for (int i = 0; i < Hand.Length; i++)
+            {
+                Hand[i] = null; 
+            }
+        }
+
         public virtual void PlaceBet(int BetAmount)
         {
-            if (ChipCount > BetAmount)
+            if (ChipCount >= BetAmount)
             {
                 ChipCount -= BetAmount;
                 CurrentBet += BetAmount;
@@ -283,69 +292,57 @@ namespace AiToSimulateHumanBehaviourInPoker
         public AI()
         {
             ChipCount = 10000; // Default ChipCount
-            CurrentBet = 0;
             Name = "Ai";
         }
 
-        public override void PlaceBet(int currentBet)
+        public override void PlaceBet(int MainPlayerBet)
         {
             Random random = new Random();
+           
+            bool BetLastRound = false;
 
-            int CallAmount = currentBet - CurrentBet;
-            int MaxRaiseAmount = Math.Min(ChipCount - CallAmount, random.Next(50, 1000));
+            PokerHand AiHandStength = HandEvaluator.EvaluateHoleCards(Hand);
 
-            PokerHand AiHandStrength = HandEvaultor.EvaluateHoleCard(Hand);
-
-            if (CallAmount > 0)
+            if (ChipCount != 0)
             {
-                if (ChipCount < currentBet)
+                if (MainPlayerBet > ChipCount)
                 {
-                    Console.WriteLine($"{Name} calls the current bet of {currentBet}");
-                    PlaceBet(currentBet);
+                    Console.WriteLine($"{Name} goes all in!");
+                    base.PlaceBet(ChipCount);
                 }
                 else
                 {
-                    Fold();
-                }
-            }
-            else
-            {
-                if (AiHandStrength == PokerHand.Pair && random.Next(1, 11) <= 8) // 80% chance of betting given a pair
-                {
-                    if (MaxRaiseAmount > 0)
+                    if (MainPlayerBet != CurrentBet)
                     {
-                        int RaiseAmount = random.Next(1, MaxRaiseAmount + 1);
-                        Console.WriteLine($"{Name} raise by {RaiseAmount} chips");
-                        PlaceBet(CallAmount + RaiseAmount);
+                        base.PlaceBet(MainPlayerBet);
                     }
-                    else
+                    else if (AiHandStength == PokerHand.Pair && random.Next(1, 11) <= 8 && BetLastRound == false) // 80% chance of betting if pair
                     {
-                        Console.WriteLine($"{Name} calls the bet of {CallAmount}");
-                        PlaceBet(CallAmount);
+                        int BetAmount = random.Next(1, ChipCount / 2);
+                        base.PlaceBet(BetAmount);
+                        BetLastRound = true;
                     }
-                }
-                else if (AiHandStrength == PokerHand.HighCard && random.Next(1, 11) <= 6) // 60% chance of calling given a high card
-                {
-                    Console.WriteLine($"{Name} calls the bet of {CallAmount}");
-                    PlaceBet(CallAmount);
-                }
-                else
-                {
-                    if (random.Next(1, 11) <= 7) // 70% chance of checking
+                    else if (AiHandStength == PokerHand.HighCard && random.Next(1, 11) <= 9) // 90% chance of checking
                     {
                         Check();
                     }
                     else
                     {
-                        Fold();
+                        Fold(); // 10% chance of folding 
                     }
                 }
             }
+            else
+            {
+                Console.WriteLine($"{Name} is out of chips, continue playing");
+                return;
+            }
+            
         }
     }
 
     //=================================================================================================================
-    // Poker Hand Evualtor Class
+    // Poker Hand Evaluator Class
     //=================================================================================================================
     public enum PokerHand
     {
@@ -361,7 +358,7 @@ namespace AiToSimulateHumanBehaviourInPoker
         RoyalFlush
     }
 
-    public class HandEvaultor
+    public class HandEvaluator
     {
         private static bool HasPair(Card[] Cards)
         {
@@ -514,7 +511,7 @@ namespace AiToSimulateHumanBehaviourInPoker
             return PokerHand.HighCard;
         }
 
-        public static PokerHand EvaluateHoleCard(Card[] Hand)
+        public static PokerHand EvaluateHoleCards(Card[] Hand)
         {
             if (HasPair(Hand))
             {
@@ -524,7 +521,12 @@ namespace AiToSimulateHumanBehaviourInPoker
             {
                 return PokerHand.HighCard;
             }
-            
+        }
+
+        public static int FindCardRankSum(Card[] Hand)
+        {
+            int sum = Hand.Sum(card => (int)card.Rank);
+            return sum;
         }
     }
 
@@ -541,19 +543,41 @@ namespace AiToSimulateHumanBehaviourInPoker
             Console.WriteLine("-----------------");
         }
 
-        static void DetermineWinner(Player MainPlayer, PokerHand MainPlayerHand, Player Ai, PokerHand AiPlayerHand)
+        static void DetermineWinner(Table GameTable, Player MainPlayer, PokerHand MainPlayerHand, Player Ai, PokerHand AiPlayerHand)
         {
             if (MainPlayerHand > AiPlayerHand)
             {
                 Console.WriteLine($"{MainPlayer.Name} wins!");
+                MainPlayer.ChipCount += GameTable.PotValue;
+                MainPlayer.WinCount += 1;
             }
             else if (AiPlayerHand > MainPlayerHand)
             {
                 Console.WriteLine($"{Ai.Name} wins!");
+                Ai.ChipCount += GameTable.PotValue;
             }
             else
             {
-                Console.WriteLine("You both tied!");
+                int PlayerSum = HandEvaluator.FindCardRankSum(MainPlayer.Hand);
+                int AiSum = HandEvaluator.FindCardRankSum(Ai.Hand);
+
+                if (PlayerSum > AiSum)
+                {
+                    Console.WriteLine($"{MainPlayer.Name} wins!");
+                    MainPlayer.ChipCount += GameTable.PotValue;
+                    MainPlayer.WinCount += 1;
+                }
+                else if (AiSum > PlayerSum)
+                {
+                    Console.WriteLine($"{Ai.Name} wins!");
+                    Ai.ChipCount += GameTable.PotValue;
+                }
+                else
+                {
+                    Console.WriteLine("Both players tied!");
+                    Ai.ChipCount += (GameTable.PotValue) / 2;
+                    MainPlayer.ChipCount += (GameTable.PotValue) / 2;
+                }
             }
         }
 
@@ -579,115 +603,89 @@ namespace AiToSimulateHumanBehaviourInPoker
             }
         }
 
+        static bool BettingRoundComplete(Player MainPlayer, Player Ai1)
+        {
+            return (MainPlayer.Folded || Ai1.Folded || MainPlayer.CurrentBet == Ai1.CurrentBet || 
+                MainPlayer.ChipCount == 0 || Ai1.ChipCount == 0);
+        }
+        
         static void SimulateBettingRound(Table GameTable, Player MainPlayer, Player Ai1)
         {
-            int CurrentBet = GameTable.PotValue;
-
             MainPlayer.Show();
             PrintSeparator();
             GameTable.Show();
 
-            while (true)
-            {
-                if (MainPlayer.Folded != true && MainPlayer.ChipCount > 0)
-                {
-                    // This is the main player's turn
-                    PrintSeparator();
-                    Console.WriteLine($"{MainPlayer.Name}'s turn");
-                    PrintSeparator();
-                    Console.WriteLine($"The current bet is {CurrentBet}");
-                    Console.WriteLine("1: Call, 2: Raise, 3: Fold, 4: Bet, 5: Check");
-                    PrintSeparator();
+            MainPlayer.CurrentBet = 0;
+            Ai1.CurrentBet = 0;
 
+            do
+            {
+                if (MainPlayer.Folded != true)
+                {
+                    PrintSeparator();
+                    Console.WriteLine("1. Check 2. Bet 3. Fold 4: Call");
+                    PrintSeparator();
+                    
                     if (int.TryParse(Console.ReadLine(), out int PlayerChoice))
                     {
                         switch (PlayerChoice)
                         {
-                            // Call
-                            case 1:
-                                int CallAmount = CurrentBet - MainPlayer.CurrentBet;
-                                MainPlayer.PlaceBet(CallAmount);
-                                GameTable.PotValue = CurrentBet;
-                                PrintSeparator();
-                                GameTable.Show();
-                                break;
-                            // Raise
-                            case 2:
-                                Console.WriteLine("How many chips would you like to raise?");
-                                int RaiseAmount = GetValidBettingAmount(MainPlayer);
-                                MainPlayer.PlaceBet(RaiseAmount);
-                                CurrentBet += RaiseAmount;
-                                GameTable.PotValue = CurrentBet;
-                                PrintSeparator();
-                                GameTable.Show();
-                                break;
-                            // Fold
-                            case 3:
-                                MainPlayer.Fold();
-                                PrintSeparator();
-                                GameTable.Show();
-                                break;
-                            // Bet
-                            case 4:
-                                Console.WriteLine("How many chips would you like to bet?");
-                                int BetAmount = GetValidBettingAmount(MainPlayer);
-                                MainPlayer.PlaceBet(BetAmount);
-                                CurrentBet = BetAmount;
-                                GameTable.PotValue = CurrentBet;
-                                PrintSeparator();
-                                GameTable.Show();
-                                break;
                             // Check
-                            case 5:
-                                if (CurrentBet == MainPlayer.CurrentBet)
+                            case 1:
+                                if (MainPlayer.CurrentBet == Ai1.CurrentBet)
                                 {
                                     MainPlayer.Check();
-                                    PrintSeparator();
-                                    GameTable.Show();
                                 }
                                 else
                                 {
-                                    Console.WriteLine($"{MainPlayer.Name} can't check, there is a bet of {CurrentBet} to call");
+                                    Console.WriteLine("You can't check, because there is a bet that needs to be called");
                                 }
                                 break;
-                            // Error Check
+                            case 2:
+                                Console.WriteLine("Please enter the amount of chips you want to bet");
+                                int BetAmount = GetValidBettingAmount(MainPlayer);
+                                MainPlayer.PlaceBet(BetAmount);
+                                break;
+                            case 3:
+                                MainPlayer.Fold();
+                                break;
+                            case 4:
+                                MainPlayer.PlaceBet(Ai1.CurrentBet);
+                                break;
                             default:
-                                Console.WriteLine("Please enter an integer between 1 and 5 inclusive");
+                                Console.WriteLine("Enter an integer between 1 and 4 inclusive");
                                 break;
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine("Please enter an integer between 1 and 5 inclusive");
-                    }
                 }
 
+                if (Ai1.Folded != true)
+                {
+                    Ai1.PlaceBet(MainPlayer.CurrentBet);
+                }
+
+                GameTable.PotValue += MainPlayer.CurrentBet + Ai1.CurrentBet;
                 PrintSeparator();
-
-                if (Ai1.Folded != true && Ai1.ChipCount > 0)
-                {
-                    // Ai's turn
-                    int currentBet = Math.Abs(CurrentBet - Ai1.ChipCount);
-                    Ai1.PlaceBet(currentBet);
-                    PrintSeparator();
-                }
-
-                if (MainPlayer.Folded == true || Ai1.Folded == true || MainPlayer.ChipCount == 0 || Ai1.ChipCount == 0 
-                    || MainPlayer.Checked && Ai1.Checked == true)
-                {
-                    break;
-                }
             }
+            while (!BettingRoundComplete(MainPlayer, Ai1));
         }
 
         static void LetsPlayPoker(Player MainPlayer, Player Ai1, Deck DeckOfCards, Table GameTable)
         {
             // Preflop stage
+            MainPlayer.Folded = false;
+            Ai1.Folded = false;
+            MainPlayer.Checked = false;
+            Ai1.Checked = false;
+            
             DeckOfCards.GenerateDeck();
             DeckOfCards.ShuffleDeck();
 
             GameTable.ResetPotValue();
             GameTable.ResetCards();
+
+            MainPlayer.ResetHand();
+            Ai1.ResetHand();
 
             DeckOfCards.DealCard(MainPlayer);
             DeckOfCards.DealCard(Ai1);
@@ -699,15 +697,24 @@ namespace AiToSimulateHumanBehaviourInPoker
 
             // Flop stage
             DeckOfCards.AddCardsToTable(GameTable, 3);
-            SimulateBettingRound(GameTable, MainPlayer, Ai1);
+            if (MainPlayer.Folded != true || Ai1.Folded != true)
+            {
+                SimulateBettingRound(GameTable, MainPlayer, Ai1);
+            }
 
             // Turn stage
             DeckOfCards.AddCardsToTable(GameTable, 1);
-            SimulateBettingRound(GameTable, MainPlayer, Ai1);
+            if (MainPlayer.Folded != true || Ai1.Folded != true)
+            {
+                SimulateBettingRound(GameTable, MainPlayer, Ai1);
+            }
 
             // River stage
             DeckOfCards.AddCardsToTable(GameTable, 1);
-            SimulateBettingRound(GameTable, MainPlayer, Ai1);
+            if (MainPlayer.Folded != true || Ai1.Folded != true)
+            {
+                SimulateBettingRound(GameTable, MainPlayer, Ai1);
+            }
 
             // End Game
             MainPlayer.Show();
@@ -719,15 +726,37 @@ namespace AiToSimulateHumanBehaviourInPoker
             GameTable.Show();
             PrintSeparator();
 
-            PokerHand MainPlayerHand = HandEvaultor.EvaluateHand(MainPlayer.Hand, GameTable.PokerTable);
+            PokerHand MainPlayerHand = HandEvaluator.EvaluateHand(MainPlayer.Hand, GameTable.PokerTable);
             Console.WriteLine($"{MainPlayer.Name} you got a {MainPlayerHand}");
 
-            PokerHand AiHand = HandEvaultor.EvaluateHand(Ai1.Hand, GameTable.PokerTable);
+            PokerHand AiHand = HandEvaluator.EvaluateHand(Ai1.Hand, GameTable.PokerTable);
             Console.WriteLine($"{Ai1.Name} you got a {AiHand}");
 
             // Determine Winner
             PrintSeparator();
-            DetermineWinner(MainPlayer, MainPlayerHand, Ai1, AiHand);
+            
+            if (MainPlayer.Folded != true && Ai1.Folded != true)
+            {
+                DetermineWinner(GameTable, MainPlayer, MainPlayerHand, Ai1, AiHand);
+            }
+            else if (MainPlayer.Folded != true && Ai1.Folded == true)
+            {
+                Console.WriteLine($"{MainPlayer.Name} wins!");
+                MainPlayer.ChipCount += GameTable.PotValue;
+                MainPlayer.WinCount += 1;
+            }
+            else if (MainPlayer.Folded == true && Ai1.Folded != true)
+            {
+                Console.WriteLine($"{Ai1.Name} wins!");
+                Ai1.ChipCount += GameTable.PotValue;
+            }
+            else
+            {
+                Console.WriteLine("No winners");
+                Ai1.ChipCount += (GameTable.PotValue) / 2;
+                MainPlayer.ChipCount += (GameTable.PotValue) / 2;
+            }
+            
             PrintSeparator();
 
             Console.WriteLine("Would you like to play again? y/n");
@@ -740,6 +769,8 @@ namespace AiToSimulateHumanBehaviourInPoker
             }
             else
             {
+                Console.WriteLine($"{MainPlayer.Name} has a total win count of {MainPlayer.WinCount}");
+                SaveWinCount(MainPlayer);
                 Console.WriteLine("Thank you for playing!");
             }
         }
@@ -769,7 +800,7 @@ namespace AiToSimulateHumanBehaviourInPoker
                         while (!InputFile.EndOfStream)
                         {
                             string line = InputFile.ReadLine();
-                            line = line.Trim();                     // Removes potential whitespaces in the line.
+                            line = line.Trim();                     
                             string[] values = line.Split(',');      // Data is separated by commas.
 
                             if (values.Length == 3)
@@ -814,10 +845,27 @@ namespace AiToSimulateHumanBehaviourInPoker
             }
         }
 
+        static void SaveWinCount(Player MainPlayer)
+        {
+            const string USERFILE = "USERFILE.txt";
+
+            try
+            {
+                using (StreamWriter InputFile = new StreamWriter(USERFILE))
+                {
+                    InputFile.WriteLine($"{MainPlayer.Name},{MainPlayer.WinCount},{MainPlayer.ChipCount}");
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+        }
+
         //=============================================================================================================
         // Main Function
         //=============================================================================================================
-        static void Main(string[] args)
+        static void Main()
         {
             // For Unicode Console Output (Windows 11)
             Console.OutputEncoding = Encoding.UTF8;
@@ -830,8 +878,6 @@ namespace AiToSimulateHumanBehaviourInPoker
 
             // Loading Player Profile
             LoadProfile(MainPlayer);
-
-            //Console.WriteLine($"Name: {MainPlayer.Name}, WinCount: {MainPlayer.WinCount}, ChipCount: {MainPlayer.ChipCount}");
 
             // Playing Game
             LetsPlayPoker(MainPlayer, Ai1, DeckOfCards, GameTable);
