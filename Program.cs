@@ -4,6 +4,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace AiToSimulateHumanBehaviourInPoker
 {
@@ -134,9 +135,11 @@ namespace AiToSimulateHumanBehaviourInPoker
             GenerateDeck();
         }
 
-        public void DealCard(Player player)
+        public void DealCard(Player player, int NumberOfCards)
         {
-            for (int i = 0; i < DeckOfCards.Length; i++)
+            int cardsDealt = 0;
+
+            for (int i = 0; i < DeckOfCards.Length && cardsDealt < NumberOfCards; i++)
             {
                 if (DeckOfCards[i] != null)
                 {
@@ -146,6 +149,8 @@ namespace AiToSimulateHumanBehaviourInPoker
                         {
                             player.Hand[j] = DeckOfCards[i];
                             DeckOfCards[i] = null;
+                            cardsDealt++;
+                            break;
                         }
                     }
                 }
@@ -298,8 +303,6 @@ namespace AiToSimulateHumanBehaviourInPoker
         public override void PlaceBet(int MainPlayerBet)
         {
             Random random = new Random();
-           
-            bool BetLastRound = false;
 
             PokerHand AiHandStength = HandEvaluator.EvaluateHoleCards(Hand);
 
@@ -316,11 +319,10 @@ namespace AiToSimulateHumanBehaviourInPoker
                     {
                         base.PlaceBet(MainPlayerBet);
                     }
-                    else if (AiHandStength == PokerHand.Pair && random.Next(1, 11) <= 8 && BetLastRound == false) // 80% chance of betting if pair
+                    else if (AiHandStength == PokerHand.Pair && random.Next(1, 11) <= 8) // 80% chance of betting if pair
                     {
                         int BetAmount = random.Next(1, ChipCount / 2);
                         base.PlaceBet(BetAmount);
-                        BetLastRound = true;
                     }
                     else if (AiHandStength == PokerHand.HighCard && random.Next(1, 11) <= 9) // 90% chance of checking
                     {
@@ -360,19 +362,35 @@ namespace AiToSimulateHumanBehaviourInPoker
 
     public class HandEvaluator
     {
-        private static bool HasPair(Card[] Cards)
+        
+        private static bool HasRoyalFlush(Card[] Cards)
         {
-            return Cards.GroupBy(c => c.Rank).Any(g => g.Count() == 2);
+            return HasFlush(Cards) &&
+           Cards.Any(c => c.Rank == CardRanks.Ten) &&
+           Cards.Any(c => c.Rank == CardRanks.Jack) &&
+           Cards.Any(c => c.Rank == CardRanks.Queen) &&
+           Cards.Any(c => c.Rank == CardRanks.King) &&
+           Cards.Any(c => c.Rank == CardRanks.Ace);
         }
 
-        private static bool HasTwoPair(Card[] Cards)
+        private static bool HasStraightFlush(Card[] Cards)
         {
-            return Cards.GroupBy(c => c.Rank).Count(g => g.Count() == 2) == 2;
+            return HasStraight(Cards) && HasFlush(Cards);
+        }
+        
+        private static bool HasFourOfAKind(Card[] Cards)
+        {
+            return Cards.GroupBy(c => c.Rank).Any(g => g.Count() == 4);
         }
 
-        private static bool HasThreeOfAKind(Card[] Cards)
+        private static bool HasFullHouse(Card[] Cards)
         {
-            return Cards.GroupBy(c => c.Rank).Any(g => g.Count() == 3);
+            return HasPair(Cards) && HasThreeOfAKind(Cards);
+        }
+
+        private static bool HasFlush(Card[] Cards)
+        {
+            return Cards.GroupBy(c => c.Suit).Any(g => g.Count() == 5);
         }
 
         private static bool HasStraight(Card[] Cards)
@@ -383,6 +401,7 @@ namespace AiToSimulateHumanBehaviourInPoker
             if (distinctRanks.Contains(CardRanks.Ace) && distinctRanks.Contains(CardRanks.Two) && distinctRanks.Contains(CardRanks.Three)
                 && distinctRanks.Contains(CardRanks.Four) && distinctRanks.Contains(CardRanks.Five))
             {
+                distinctRanks.Clear();
                 return true;
             }
 
@@ -390,6 +409,7 @@ namespace AiToSimulateHumanBehaviourInPoker
             if (distinctRanks.Contains(CardRanks.Ace) && distinctRanks.Contains(CardRanks.King) && distinctRanks.Contains(CardRanks.Queen)
                 && distinctRanks.Contains(CardRanks.Jack) && distinctRanks.Contains(CardRanks.Ten))
             {
+                distinctRanks.Clear();
                 return true;
             }
 
@@ -402,6 +422,7 @@ namespace AiToSimulateHumanBehaviourInPoker
                     consecutiveCount++;
                     if (consecutiveCount >= 5)
                     {
+                        distinctRanks.Clear();
                         return true;
                     }
                 }
@@ -411,37 +432,23 @@ namespace AiToSimulateHumanBehaviourInPoker
                 }
             }
 
+            distinctRanks.Clear();
             return false;
         }
-
-        private static bool HasFlush(Card[] Cards)
+        
+        private static bool HasThreeOfAKind(Card[] Cards)
         {
-            return Cards.GroupBy(c => c.Suit).Any(g => g.Count() == 5);
+            return Cards.GroupBy(c => c.Rank).Any(g => g.Count() == 3);
         }
 
-        private static bool HasFullHouse(Card[] Cards)
+        private static bool HasTwoPair(Card[] Cards)
         {
-            return HasPair(Cards) && HasThreeOfAKind(Cards);
+            return Cards.GroupBy(c => c.Rank).Count(g => g.Count() == 2) >= 2;
         }
 
-        private static bool HasFourOfAKind(Card[] Cards)
+        private static bool HasPair(Card[] Cards)
         {
-            return Cards.GroupBy(c => c.Rank).Any(g => g.Count() == 4);
-        }
-
-        private static bool HasStraightFlush(Card[] Cards)
-        {
-            return HasStraight(Cards) && HasFlush(Cards);
-        }
-
-        private static bool HasRoyalFlush(Card[] Cards)
-        {
-            return HasFlush(Cards) &&
-           Cards.Any(c => c.Rank == CardRanks.Ten) &&
-           Cards.Any(c => c.Rank == CardRanks.Jack) &&
-           Cards.Any(c => c.Rank == CardRanks.Queen) &&
-           Cards.Any(c => c.Rank == CardRanks.King) &&
-           Cards.Any(c => c.Rank == CardRanks.Ace);
+            return Cards.GroupBy(c => c.Rank).Any(g => g.Count() == 2);
         }
 
         public static PokerHand EvaluateHand(Card[] Hand, Card[] CommunityCards)
@@ -458,8 +465,7 @@ namespace AiToSimulateHumanBehaviourInPoker
             {
                 Cards[Hand.Length + i] = CommunityCards[i];
             }
-
-
+       
             if (HasRoyalFlush(Cards))
             {
                 return PokerHand.RoyalFlush;
@@ -470,8 +476,7 @@ namespace AiToSimulateHumanBehaviourInPoker
             {
                 return PokerHand.StraightFlush;
             }
-
-
+            
             if (HasFourOfAKind(Cards))
             {
                 return PokerHand.FourOfAKind;
@@ -611,6 +616,8 @@ namespace AiToSimulateHumanBehaviourInPoker
         
         static void SimulateBettingRound(Table GameTable, Player MainPlayer, Player Ai1)
         {
+            Console.Clear();
+            
             MainPlayer.Show();
             PrintSeparator();
             GameTable.Show();
@@ -625,37 +632,58 @@ namespace AiToSimulateHumanBehaviourInPoker
                     PrintSeparator();
                     Console.WriteLine("1. Check 2. Bet 3. Fold 4: Call");
                     PrintSeparator();
+
+                    int PlayerChoice = 0;
+                    bool ValidInput = false;
                     
-                    if (int.TryParse(Console.ReadLine(), out int PlayerChoice))
+                    while (!ValidInput)
                     {
-                        switch (PlayerChoice)
+                        string UserInput = Console.ReadLine();  
+                        
+                        if (!string.IsNullOrWhiteSpace(UserInput) && int.TryParse(UserInput, out PlayerChoice))
                         {
-                            // Check
-                            case 1:
-                                if (MainPlayer.CurrentBet == Ai1.CurrentBet)
-                                {
-                                    MainPlayer.Check();
-                                }
-                                else
-                                {
-                                    Console.WriteLine("You can't check, because there is a bet that needs to be called");
-                                }
-                                break;
-                            case 2:
-                                Console.WriteLine("Please enter the amount of chips you want to bet");
-                                int BetAmount = GetValidBettingAmount(MainPlayer);
-                                MainPlayer.PlaceBet(BetAmount);
-                                break;
-                            case 3:
-                                MainPlayer.Fold();
-                                break;
-                            case 4:
-                                MainPlayer.PlaceBet(Ai1.CurrentBet);
-                                break;
-                            default:
+                            if (PlayerChoice >= 1 && PlayerChoice <= 4)
+                            {
+                                ValidInput = true;  
+                            }
+                            else
+                            {
                                 Console.WriteLine("Enter an integer between 1 and 4 inclusive");
-                                break;
+                            }
                         }
+                        else
+                        {
+                            Console.WriteLine("Invalid input. Enter an integer between 1 and 4 inclusive");
+                        }
+                    }
+
+                    switch (PlayerChoice)
+                    {
+                        // Check
+                        case 1:
+                            if (MainPlayer.CurrentBet == Ai1.CurrentBet)
+                            {
+                                MainPlayer.Check();
+                            }
+                            else
+                            {
+                                Console.WriteLine("You can't check, because there is a bet that needs to be called");
+                            }
+                            break;
+                        case 2:
+                            Console.WriteLine("Please enter the amount of chips you want to bet");
+                            int BetAmount = GetValidBettingAmount(MainPlayer);
+                            MainPlayer.PlaceBet(BetAmount);
+                            break;
+                        case 3:
+                            MainPlayer.Fold();
+                            break;
+                        case 4:
+                            MainPlayer.PlaceBet(Ai1.CurrentBet);
+                            break;
+                        default:
+                            Console.WriteLine("Enter an integer between 1 and 4 inclusive");
+                            break;
                     }
                 }
 
@@ -666,14 +694,17 @@ namespace AiToSimulateHumanBehaviourInPoker
 
                 GameTable.PotValue += MainPlayer.CurrentBet + Ai1.CurrentBet;
                 PrintSeparator();
+
+                Thread.Sleep(1500); // 1.5 second sleep
             }
             while (!BettingRoundComplete(MainPlayer, Ai1));
         }
 
         static void EndGame(Player MainPlayer, Player Ai1, Table GameTable)
         {
+            // Display hands
             Console.Clear();
-            
+
             MainPlayer.Show();
             PrintSeparator();
 
@@ -720,13 +751,15 @@ namespace AiToSimulateHumanBehaviourInPoker
         static void LetsPlayPoker(Player MainPlayer, Player Ai1, Deck DeckOfCards, Table GameTable)
         {
             // Preflop stage
-            MainPlayer.Folded = false;
-            Ai1.Folded = false;
             MainPlayer.Checked = false;
+            MainPlayer.Folded = false;
             Ai1.Checked = false;
-
-            // Update ChipCount for Ai
-            Ai1.ChipCount = 10000;
+            Ai1.Folded = false;
+            
+            if (Ai1.ChipCount == 0)
+            {
+                Ai1.ChipCount = 10000;
+            }
 
             if (MainPlayer.ChipCount == 0)
             {
@@ -738,15 +771,15 @@ namespace AiToSimulateHumanBehaviourInPoker
 
             GameTable.ResetPotValue();
             GameTable.ResetCards();
-
+      
             MainPlayer.ResetHand();
             Ai1.ResetHand();
 
-            DeckOfCards.DealCard(MainPlayer);
-            DeckOfCards.DealCard(Ai1);
+            DeckOfCards.DealCard(MainPlayer, 1);
+            DeckOfCards.DealCard(Ai1, 1);
 
-            DeckOfCards.DealCard(MainPlayer);
-            DeckOfCards.DealCard(Ai1);
+            DeckOfCards.DealCard(MainPlayer, 1);
+            DeckOfCards.DealCard(Ai1, 1);
 
             SimulateBettingRound(GameTable, MainPlayer, Ai1);
 
@@ -832,6 +865,8 @@ namespace AiToSimulateHumanBehaviourInPoker
             if (!File.Exists(USERFILE))
             {
                 Console.WriteLine($"{USERFILE} does not exist, please create it.");
+                Thread.Sleep(1500);
+                Environment.Exit(0);
             }
             else
             {
@@ -869,13 +904,14 @@ namespace AiToSimulateHumanBehaviourInPoker
                                 {
                                     Console.WriteLine("No valid chipCount, setting chipCount to 10000.");
 
-                                    chipCount = 10000;
-                                    MainPlayer.ChipCount = chipCount;
+                                    MainPlayer.ChipCount = 10000;
                                 }
                             }
                             else
                             {
                                 Console.WriteLine($"Invalid Format on Line: {line}");
+                                Thread.Sleep(1500);
+                                Environment.Exit(0);
                             }
                         }
                     }
@@ -883,6 +919,8 @@ namespace AiToSimulateHumanBehaviourInPoker
                 catch (Exception e)
                 {
                     Console.WriteLine(e.Message);
+                    Thread.Sleep(1500);
+                    Environment.Exit(0);
                 }
             }
         }
